@@ -25,8 +25,11 @@ data_obj.save_torch_data_batches(folder_path='./data/numsent_3/batches/')
 # Get train, test, and validation datasets
 train_set, test_set, val_set = data_obj.get_train_test_val_data()
 
-# Initialize the model
+# Initialize the model zigzag 
 model = Model('zigzag_resnet')
+
+# Initialize the model googlenet
+model = Model('googlenet')
 
 # Set the batch size
 batch_size = 32
