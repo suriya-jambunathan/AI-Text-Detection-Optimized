@@ -6,6 +6,10 @@ Ashwath Shankarnarayan (as16494), NYU
 
 # Training and Testing on HC3 Data
 ```
+from model import Model
+from data import Data
+from torch.utils.data import DataLoader
+
 # Initialize Data object with the CSV file name
 data_obj = Data(csv_name='./data/HC3.csv')
 
@@ -27,13 +31,9 @@ model = Model('zigzag_resnet')
 # Set the batch size
 batch_size = 32
 
-# Create a DataLoader for the training set to handle batch loading and shuffling
+# Create a DataLoader for the train, validation, and test set
 train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, pin_memory=False)
-
-# Create a DataLoader for the validation set
 valid_loader = DataLoader(val_set, batch_size=batch_size, shuffle=True, pin_memory=False)
-
-# Create a DataLoader for the test set
 test_loader = DataLoader(test_set, batch_size=batch_size, shuffle=False, pin_memory=False)
 
 # Train the model for the specified number of epochs using the training and validation loaders
