@@ -1,10 +1,42 @@
 # AI-Text-Detection-Optimized
 
-Team Members: 
-Suriya Prakash Jambunathan (sj3828), NYU
-Ashwath Shankarnarayan (as16494), NYU
+![Python](https://img.shields.io/badge/Python-3.10-blue)
 
-# Training and Testing on HC3 Data
+## Team Members: 
+### Suriya Prakash Jambunathan (sj3828), NYU
+### Ashwath Shankarnarayan (as16494), NYU
+
+
+## Why Image Approach over Text
+
+1. NLP models have huge number of parameters (eg BERT- 110 million)
+2. Image classification models have reasonably less parameters
+3. A lot of image classification models have better and consistent accuracy scores
+4. Less Training time for image classification models
+5. Observe the spatial relation between the sentences.
+
+
+## Model details
+
+We pursued a novel approach to address the challenge of optimizing the ResNet-18 architecture . Our strategy  incorporated a diversified channel size progression. This approach involved starting with 64 channels, gradually increasing to 1024, then gradually decreasing it to 64, then again increasing it to 1024. This configuration introduced more variety into the model, utilizing several distinct block structures, in contrast to the four unique block structures in the original ResNet-18. Our results indicated that the ZigZag model outperformed the other architectures in terms of accuracy.
+Alternatively, we also trained our image-based data on GoogleNet, which is a well-known model for image classification problems.
+
+
+## Text embedding in Image
+
+1. Split the input paragraph into overlapping 3-sentences granularity.
+2. Assign an id to each of the word in the sentences using Parts of Speech (POS) tags.
+3. Pad zeros to POS Tags to make the embedding equal for all sentences.
+4. Vertically stack the PAD Tags of the three sentences.
+5. Plot a contour map of the vertical stack (final embedding).
+
+
+![alt text](/results/text_embedding_sample.png)
+
+## Training and Testing on HC3 Data
+
+https://huggingface.co/datasets/Hello-SimpleAI/HC3/blob/main/README.md
+
 ```
 from model import Model
 from data import Data
@@ -45,8 +77,28 @@ model.train(num_epochs=100, train_loader=train_loader, val_loader=valid_loader)
 # Test the trained model using the test loader
 model.test(dataloader=test_loader)
 ```
+## Results 
 
-Inference on custom text
+### 1. Text approach (BERT) 
+
+![alt text](/results/bert_model_inference.jpg)
+
+### 2. Image approach (GoogleNet/ResNet)
+
+![alt text](/results/image_model_performance.png)
+
+### Observation
+
+The dataset HC3 works very well on NLP models. We trained the HC3 dataset on a BERT pre-trained tokenizer and model and we were able to achieve a test accuracy of 99% and along with that we tested the model and compared it with other AI classifiers such as GPTZero and OpenAI classifier and the BERT model performed  better than both of the other classifiers.
+The image approach where we are making use of a CNN model, we were able to achieve a test accuracy of 93-94% (within the dataset), although the model did not generalise very well for outside of the dataset. This is due to the fact that we have less amount of variety data points which is a bottleneck.
+
+The Text-Based BERT Model generalized very well and performed near-perfectly on multiple LLM generated data.
+The Image-Based Model learnt the pattern in the data very well, and performed nearly 93% accurate on the HC3 Dataset. Due to lack of variety of LLM-Generated data and their corresponding image-embeddings, the model did not generalize well. With better quality data in large numbers, the model should generalize and predict well.  
+
+
+## Inference on custom text
 ```
 python3 inference.py
 ```
+
+
