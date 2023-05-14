@@ -1,102 +1,132 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import numpy as np
 
 class Model():
     def __init__(self, model_name):
+        # Check if CUDA is available, set the device accordingly
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        
         if model_name == 'zigzag_resnet':
-            self.model = ZigZag_ResNet(BasicBlock, [1]*13, num_classes = 2).to(self.device)
+            # Create a ZigZag_ResNet model with 13 BasicBlocks and 2 output classes
+            self.model = ZigZag_ResNet(BasicBlock, [1]*13, num_classes=2).to(self.device)
+            
+            # Define the CrossEntropyLoss criterion for classification
             self.criterion = nn.CrossEntropyLoss()
-            self.optimizer = torch.optim.SGD(self.model.parameters(), 0.001, momentum = 0.8, weight_decay = 0.0005 , nesterov=True)
+            
+            # Create an SGD optimizer with learning rate 0.001, momentum 0.8, weight decay 0.0005, and Nesterov momentum
+            self.optimizer = torch.optim.SGD(self.model.parameters(), 0.001, momentum=0.8, weight_decay=0.0005, nesterov=True)
+            
+            # Create a ZigZagLROnPlateauRestarts scheduler with mode 'max', initial LR 0.001,
+            # up factor 0.3, down factor 0.5, up patience 1, down patience 1, restart after 30 epochs, and verbose output
             self.scheduler = ZigZagLROnPlateauRestarts(self.optimizer, mode='max', lr=0.001,
-                                                    up_factor=0.3, down_factor=0.5, 
-                                                    up_patience=1, down_patience=1, 
-                                                    restart_after=30, verbose = True)
+                                                    up_factor=0.3, down_factor=0.5,
+                                                    up_patience=1, down_patience=1,
+                                                    restart_after=30, verbose=True)
         elif model_name == 'googlenet':
-            self.model = model = GoogLeNet().to(self.device)
+            # Create a GoogLeNet model
+            self.model = GoogLeNet().to(self.device)
+            
+            # Define the CrossEntropyLoss criterion for classification
             self.criterion = nn.CrossEntropyLoss()
-            self.optimizer = torch.optim.SGD(self.model.parameters(), 0.05 * 4, momentum = 0.8, weight_decay = 0.0005 , nesterov=True)
-            self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, 'min', patience = 2)
+            
+            # Create an SGD optimizer with learning rate 0.05 * 4, momentum 0.8, weight decay 0.0005, and Nesterov momentum
+            self.optimizer = torch.optim.SGD(self.model.parameters(), 0.05 * 4, momentum=0.8, weight_decay=0.0005, nesterov=True)
+            
+            # Create a ReduceLROnPlateau scheduler with mode 'min' and patience 2
+            self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, 'min', patience=2)
+
     
     def train(self, num_epochs, train_loader, val_loader):
-        train_losses_ = []
-        train_accuracies_ = []
-        valid_losses_ = []
-        valid_accuracies_ = []
+        train_losses_ = []  # List to store training losses for each epoch
+        train_accuracies_ = []  # List to store training accuracies for each epoch
+        valid_losses_ = []  # List to store validation losses for each epoch
+        valid_accuracies_ = []  # List to store validation accuracies for each epoch
+        
         for epoch in range(num_epochs):
             print(f"\n\tEpoch: {epoch+1}/{num_epochs}")
-
+            
+            # Perform training and validation for the current epoch
             train_loss, train_accuracy, val_loss, val_accuracy = self.train_val(train_loader, val_loader)
+            
+            # Append the results to the respective lists
             train_losses_.append(train_loss)
             train_accuracies_.append(train_accuracy)
             valid_losses_.append(val_loss)
             valid_accuracies_.append(val_accuracy)
+            
+            # Print the training and validation metrics for the current epoch
             print(f"\tTraining Loss: {round(train_loss, 4)}; Training Accuracy: {round(train_accuracy*100, 4)}%")
             print(f"\tValidation Loss: {round(val_loss, 4)}; Validation Accuracy: {round(val_accuracy*100, 4)}%")
 
     def train_val(self, train_loader, val_loader):
-        self.model.train()
-        train_loss = 0
-        correct = 0
-        total = 0
+        self.model.train()  # Set the model in training mode
+        train_loss = 0  # Variable to store the cumulative training loss
+        correct = 0  # Variable to store the number of correct predictions
+        total = 0  # Variable to store the total number of samples
+        
         for i, data in enumerate(train_loader, 0):
             image, label = data
             image = image.to(self.device)
             label = label.to(self.device)
-        
-            self.optimizer.zero_grad()
-            output = self.model(image)
-            loss = self.criterion(output, label)
-
-            train_loss += loss.item()
-
-            pred = torch.max(output.data, 1)[1]
-            cur_correct = (pred == label).sum().item()
-            cur_loss = loss.item()
-
-            loss.backward()
-
-            self.optimizer.step()
             
-            total += label.size(0)
-            correct += cur_correct
-            train_loss += cur_loss
+            self.optimizer.zero_grad()  # Clear gradients from the previous iteration
+            
+            output = self.model(image)  # Forward pass
+            loss = self.criterion(output, label)  # Calculate the loss
+            
+            train_loss += loss.item()  # Accumulate the training loss
+            
+            pred = torch.max(output.data, 1)[1]  # Get the predicted labels
+            cur_correct = (pred == label).sum().item()  # Count the number of correct predictions in the current batch
+            cur_loss = loss.item()  # Get the loss value as a scalar
+            
+            loss.backward()  # Backpropagation
+            
+            self.optimizer.step()  # Update the model parameters based on the gradients
+            
+            total += label.size(0)  # Accumulate the total number of samples
+            correct += cur_correct  # Accumulate the number of correct predictions
+            train_loss += cur_loss  # Accumulate the training loss
 
-        train_accuracy = correct/total
-        train_loss = train_loss/len(train_loader)
+        train_accuracy = correct / total  # Calculate the training accuracy
+        train_loss = train_loss / len(train_loader)  # Calculate the average training loss
         
-        valid_loss, valid_accuracy = self.test(val_loader)
+        valid_loss, valid_accuracy = self.test(val_loader)  # Perform validation
         
-        self.scheduler.step(valid_accuracy)
-
+        self.scheduler.step(valid_accuracy)  # Adjust the learning rate based on validation accuracy
+        
         return train_loss, train_accuracy, valid_loss, valid_accuracy
 
+
     def test(self, dataloader):
-        self.model.eval()
-        test_loss = 0
-        correct = 0
-        total = 0
+        self.model.eval()  # Set the model in evaluation mode
+        test_loss = 0  # Variable to store the cumulative test loss
+        correct = 0  # Variable to store the number of correct predictions
+        total = 0  # Variable to store the total number of samples
+        
         for i, data in enumerate(dataloader, 0):
             image, label = data
             image = image.to(self.device)
             label = label.to(self.device)
-                    
-            output = self.model(image)
-            loss = self.criterion(output, label)
+            
+            output = self.model(image)  # Forward pass
+            loss = self.criterion(output, label)  # Calculate the loss
+            
+            pred = torch.max(output.data, 1)[1]  # Get the predicted labels
+            cur_correct = (pred == label).sum().item()  # Count the number of correct predictions in the current batch
+            cur_loss = loss.item()  # Get the loss value as a scalar
+            
+            total += label.size(0)  # Accumulate the total number of samples
+            correct += cur_correct  # Accumulate the number of correct predictions
+            test_loss += cur_loss  # Accumulate the test loss
 
-            pred = torch.max(output.data, 1)[1]
-            cur_correct = (pred == label).sum().item()
-            cur_loss = loss.item()
-                
-            total += label.size(0)
-            correct += cur_correct
-            test_loss += cur_loss
-
-        accuracy = correct/total
-        test_loss = test_loss/len(dataloader)
+        accuracy = correct / total  # Calculate the test accuracy
+        test_loss = test_loss / len(dataloader)  # Calculate the average test loss
 
         return test_loss, accuracy
+
 
 class BasicBlock(nn.Module):
     expansion = 1
