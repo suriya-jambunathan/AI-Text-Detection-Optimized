@@ -7,12 +7,17 @@ class Model():
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         if model_name == 'zigzag_resnet':
             self.model = ZigZag_ResNet(BasicBlock, [1]*13, num_classes = 2).to(self.device)
-        self.criterion = nn.CrossEntropyLoss()
-        self.optimizer = torch.optim.SGD(self.model.parameters(), 0.001, momentum = 0.8, weight_decay = 0.0005 , nesterov=True)
-        self.scheduler = ZigZagLROnPlateauRestarts(self.optimizer, mode='max', lr=0.001,
-                                                   up_factor=0.3, down_factor=0.5, 
-                                                   up_patience=1, down_patience=1, 
-                                                   restart_after=30, verbose = True)
+            self.criterion = nn.CrossEntropyLoss()
+            self.optimizer = torch.optim.SGD(self.model.parameters(), 0.001, momentum = 0.8, weight_decay = 0.0005 , nesterov=True)
+            self.scheduler = ZigZagLROnPlateauRestarts(self.optimizer, mode='max', lr=0.001,
+                                                    up_factor=0.3, down_factor=0.5, 
+                                                    up_patience=1, down_patience=1, 
+                                                    restart_after=30, verbose = True)
+        elif model_name == 'googlenet':
+            self.model = model = GoogLeNet().to(self.device)
+            self.criterion = nn.CrossEntropyLoss()
+            self.optimizer = torch.optim.SGD(self.model.parameters(), 0.05 * 4, momentum = 0.8, weight_decay = 0.0005 , nesterov=True)
+            self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, 'min', patience = 2)
     
     def train(self, num_epochs, train_loader, val_loader):
         train_losses_ = []
