@@ -1,4 +1,4 @@
-# AI-Text-Detection-Optimized
+# A Robust and Accurate Algorithm for Detecting AI-Generated Text
 
 ![Python](https://img.shields.io/badge/Python-3.10-blue)
 
