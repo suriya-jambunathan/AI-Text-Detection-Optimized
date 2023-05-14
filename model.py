@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import numpy as np
 
 class Model():
-    def __init__(self, model_name):
+    def __init__(self, model_name, num_gpus = 1):
         # Check if CUDA is available, set the device accordingly
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         
@@ -37,6 +37,10 @@ class Model():
             # Create a ReduceLROnPlateau scheduler with mode 'min' and patience 2
             self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, 'min', patience=2)
 
+        # For Utilizing Multiple GPUs
+        if num_gpus != 1:
+            device_ids=[0, 1]
+            self.model = torch.nn.DataParallel(self.model, device_ids=list(range(num_gpus)))
     
     def train(self, num_epochs, train_loader, val_loader):
         train_losses_ = []  # List to store training losses for each epoch
