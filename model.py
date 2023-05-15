@@ -37,6 +37,23 @@ class Model():
             # Create a ReduceLROnPlateau scheduler with mode 'min' and patience 2
             self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, 'min', patience=2)
 
+        elif model_name == 'text_resnet':
+            # Create a TextResNet18 model with 13 BasicBlocks and 2 output classes
+            self.model = TextResNet18(BasicBlock, [2, 2, 2, 2], num_classes = 2).to(self.device)
+
+            # Define the CrossEntropyLoss criterion for classification
+            self.criterion = nn.CrossEntropyLoss()
+            
+            # Create an SGD optimizer with learning rate 0.001, momentum 0.8, weight decay 0.0005, and Nesterov momentum
+            self.optimizer = torch.optim.SGD(self.model.parameters(), 0.001, momentum=0.8, weight_decay=0.0005, nesterov=True)
+            
+            # Create a ZigZagLROnPlateauRestarts scheduler with mode 'max', initial LR 0.001,
+            # up factor 0.3, down factor 0.5, up patience 1, down patience 1, restart after 30 epochs, and verbose output
+            self.scheduler = ZigZagLROnPlateauRestarts(self.optimizer, mode='max', lr=0.001,
+                                                    up_factor=0.3, down_factor=0.5,
+                                                    up_patience=1, down_patience=1,
+                                                    restart_after=30, verbose=True)
+
         # For Utilizing Multiple GPUs
         if num_gpus != 1:
             device_ids=[0, 1]
@@ -159,6 +176,44 @@ class BasicBlock(nn.Module):
         out = F.relu(out)
         return out
 
+class TextResNet18(nn.Module):
+    def __init__(self, block, num_blocks, num_classes=2):
+        super(TextResNet18, self).__init__()
+        self.in_planes = 64
+        self.fc = nn.Linear(512, 768)
+        
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=3,
+                               stride=1, padding=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(64)
+        self.layer1 = self._make_layer(block, 64, num_blocks[0], stride=1)
+        self.layer2 = self._make_layer(block, 128, num_blocks[1], stride=2)
+        self.layer3 = self._make_layer(block, 256, num_blocks[2], stride=2)
+        self.layer4 = self._make_layer(block, 512, num_blocks[3], stride=2)
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.linear = nn.Linear(512*block.expansion, num_classes)
+
+    def _make_layer(self, block, planes, num_blocks, stride):
+        strides = [stride] + [1]*(num_blocks-1)
+        layers = []
+        for stride in strides:
+            layers.append(block(self.in_planes, planes, stride))
+            self.in_planes = planes * block.expansion
+        return nn.Sequential(*layers)
+
+    def forward(self, x):
+        out = x.to(self.fc.weight.dtype)
+        out = self.fc(out)
+        out = out.view(-1, 3, 16, 16)
+        out = F.relu(self.bn1(self.conv1(out)))
+        out = self.layer1(out)
+        out = self.layer2(out)
+        out = self.layer3(out)
+        out = self.layer4(out)
+        out = self.avg_pool(out)
+        out = out.view(out.size(0), -1)
+        out = self.linear(out)
+        return out
+    
 class ZigZag_ResNet(nn.Module):
     def __init__(self, block, num_blocks, num_classes=2):
         super(ZigZag_ResNet, self).__init__()

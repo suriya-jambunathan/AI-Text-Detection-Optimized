@@ -1,25 +1,39 @@
 from model import Model
-from data import Data
+from data_pos import Data as POSData
+from data_use import Data as USEData
 from torch.utils.data import DataLoader
 
 if __name__ == '__main__':
-    # Initialize Data object with the CSV file name
-    data_obj = Data(csv_name='./data/HC3.csv')
+    use_data = 'use'
 
-    # Save POS tagged images for the 'ai' category
-    data_obj.save_pos_tagged_images('ai', images_dir='./data/numsent_3/')
+    if use_data == 'pos':
+        # Initialize Data object with the CSV file name
+        data_obj = POSData(csv_name='./data/HC3.csv')
 
-    # Save POS tagged images for the 'human' category
-    data_obj.save_pos_tagged_images('human', images_dir='./data/numsent_3/')
+        # Save POS tagged images for the 'ai' category
+        data_obj.save_pos_tagged_images('ai', images_dir='./data/numsent_3/')
 
-    # Save torch data batches to the specified folder path
-    data_obj.save_torch_data_batches(folder_path='./data/numsent_3/batches/')
+        # Save POS tagged images for the 'human' category
+        data_obj.save_pos_tagged_images('human', images_dir='./data/numsent_3/')
 
-    # Get train, test, and validation datasets
-    train_set, test_set, val_set = data_obj.get_train_test_val_data()
+        # Save torch data batches to the specified folder path
+        data_obj.save_torch_data_batches(folder_path='./data/numsent_3/batches/')
 
-    # Initialize the model
-    model = Model('zigzag_resnet')
+        # Get train, test, and validation datasets
+        train_set, test_set, val_set = data_obj.get_train_test_val_data()
+
+        # Initialize the model
+        model = Model('zigzag_resnet')
+
+    elif use_data == 'use':
+        # Initialize Data object with the CSV file name
+        data_obj = USEData(csv_name='./data/HC3.csv')
+
+        # Get train, test, and validation datasets
+        train_set, test_set, val_set = data_obj.get_train_test_val_data()
+
+        # Initialize the model
+        model = Model('text_resnet')
 
     # Set the batch size
     batch_size = 32

@@ -24,14 +24,22 @@ Alternatively, we also trained our image-based data on GoogleNet, which is a wel
 
 ## Text embedding in Image
 
+### Parts of Speech
 1. Split the input paragraph into overlapping 3-sentences granularity.
 2. Assign an id to each of the word in the sentences using Parts of Speech (POS) tags.
 3. Pad zeros to POS Tags to make the embedding equal for all sentences.
 4. Vertically stack the PAD Tags of the three sentences.
 5. Plot a contour map of the vertical stack (final embedding).
 
-
 ![alt text](/results/text_embedding_sample.png)
+
+### Universal Sentence Encoder
+1. Split the input paragraph into overlapping 3-sentences granularity.
+2. Apply the Universal Sentence Encoder (USE) on the 3-sentences to get a 512-long Embedding.
+3. Scale the embeddings to the range of 0-255 to emulate image pixels.
+4. The First Fully Connected Layer in our modified ResNet-18 model will take care of the image generation by scaling 512 to 768 and later reshaping it to 3 16x16 images.
+
+![alt text](/results/text_embedding_use_sample.png)
 
 ## Training and Testing on HC3 Data
 
@@ -39,36 +47,51 @@ https://huggingface.co/datasets/Hello-SimpleAI/HC3/blob/main/README.md
 
 ```
 from model import Model
-from data import Data
+from data_pos import Data as POSData
+from data_use import Data as USEData
 from torch.utils.data import DataLoader
 
-# Initialize Data object with the CSV file name
-data_obj = Data(csv_name='./data/HC3.csv')
+use_data = 'use'
 
-# Save POS tagged images for the 'ai' category
-data_obj.save_pos_tagged_images('ai', images_dir='./data/numsent_3/')
+if use_data == 'pos':
+    # Initialize Data object with the CSV file name
+    data_obj = POSData(csv_name='./data/HC3.csv')
 
-# Save POS tagged images for the 'human' category
-data_obj.save_pos_tagged_images('human', images_dir='./data/numsent_3/')
+    # Save POS tagged images for the 'ai' category
+    data_obj.save_pos_tagged_images('ai', images_dir='./data/numsent_3/')
 
-# Save torch data batches to the specified folder path
-data_obj.save_torch_data_batches(folder_path='./data/numsent_3/batches/')
+    # Save POS tagged images for the 'human' category
+    data_obj.save_pos_tagged_images('human', images_dir='./data/numsent_3/')
 
-# Get train, test, and validation datasets
-train_set, test_set, val_set = data_obj.get_train_test_val_data()
+    # Save torch data batches to the specified folder path
+    data_obj.save_torch_data_batches(folder_path='./data/numsent_3/batches/')
 
-# Initialize the model zigzag 
-model = Model('zigzag_resnet')
+    # Get train, test, and validation datasets
+    train_set, test_set, val_set = data_obj.get_train_test_val_data()
 
-# Initialize the model googlenet
-model = Model('googlenet')
+    # Initialize the model
+    model = Model('zigzag_resnet')
+
+elif use_data == 'use':
+    # Initialize Data object with the CSV file name
+    data_obj = USEData(csv_name='./data/HC3.csv')
+
+    # Get train, test, and validation datasets
+    train_set, test_set, val_set = data_obj.get_train_test_val_data()
+
+    # Initialize the model
+    model = Model('text_resnet')
 
 # Set the batch size
 batch_size = 32
 
-# Create a DataLoader for the train, validation, and test set
+# Create a DataLoader for the training set to handle batch loading and shuffling
 train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, pin_memory=False)
+
+# Create a DataLoader for the validation set
 valid_loader = DataLoader(val_set, batch_size=batch_size, shuffle=True, pin_memory=False)
+
+# Create a DataLoader for the test set
 test_loader = DataLoader(test_set, batch_size=batch_size, shuffle=False, pin_memory=False)
 
 # Train the model for the specified number of epochs using the training and validation loaders
@@ -76,6 +99,7 @@ model.train(num_epochs=100, train_loader=train_loader, val_loader=valid_loader)
 
 # Test the trained model using the test loader
 model.test(dataloader=test_loader)
+
 ```
 ## Results 
 
@@ -97,8 +121,13 @@ The Image-Based Model learnt the pattern in the data very well, and performed ne
 
 
 ## Inference on custom text
+
+### Parts of Speech
 ```
-python3 inference.py
+python3 inference_pos.py
 ```
 
-
+### Universal Sentence Encoder
+```
+python3 inference_use.py
+```
