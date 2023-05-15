@@ -107,9 +107,12 @@ model.test(dataloader=test_loader)
 
 ![alt text](/results/bert_model_inference.jpg)
 
-### 2. Image approach (GoogleNet/ResNet)
-
+### 2. Image approach 
+### POS Tagging (GoogleNet/ResNet)
 ![alt text](/results/image_model_performance.png)
+
+### USE Embedding (ResNet)
+![alt text](/results/use_model_inference.jpg)
 
 ### Observation
 
