@@ -208,25 +208,7 @@ class ZigZag_ResNet(nn.Module):
         out = out.view(out.size(0), -1)
         out = self.linear(out)
         return out
-    
-class ZigZagLROnPlateauRestarts(torch.optim.lr_scheduler._LRScheduler):
-    def __init__(self, optimizer, mode='min', lr=0.01, up_factor=1.1, down_factor=0.8, up_patience=10, down_patience=10, restart_after=30, verbose=True):
-        super(ZigZagLROnPlateauRestarts).__init__()
-        self.optimizer = optimizer
-        self.mode = mode
-        self.up_factor = 1 + up_factor
-        self.down_factor = 1 - down_factor
-        self.up_patience = up_patience
-        self.down_patience = down_patience
-        self.num_bad_epochs = 0
-        self.num_good_epochs = 0
-        self.prev_metric = np.Inf if self.mode == 'min' else -np.Inf
-        self.best_lr = lr
-        self.restart_after = restart_after
-        self.verbose = verbose
-        self.num_epochs = 0
-
-
+   
 class Inception(nn.Module):
     def __init__(self, in_planes, n1x1, n3x3red, n3x3, n5x5red, n5x5, pool_planes):
         super(Inception, self).__init__()
@@ -320,8 +302,24 @@ class GoogLeNet(nn.Module):
         out = out.view(out.size(0), -1)
         out = self.linear(out)
         return out
-
-
+    
+class ZigZagLROnPlateauRestarts(torch.optim.lr_scheduler._LRScheduler):
+    def __init__(self, optimizer, mode='min', lr=0.01, up_factor=1.1, down_factor=0.8, up_patience=10, down_patience=10, restart_after=30, verbose=True):
+        super(ZigZagLROnPlateauRestarts).__init__()
+        self.optimizer = optimizer
+        self.mode = mode
+        self.up_factor = 1 + up_factor
+        self.down_factor = 1 - down_factor
+        self.up_patience = up_patience
+        self.down_patience = down_patience
+        self.num_bad_epochs = 0
+        self.num_good_epochs = 0
+        self.prev_metric = np.Inf if self.mode == 'min' else -np.Inf
+        self.best_lr = lr
+        self.restart_after = restart_after
+        self.verbose = verbose
+        self.num_epochs = 0
+        
     def step(self, metric):
         self.num_epochs += 1
         if self.mode == 'min':
