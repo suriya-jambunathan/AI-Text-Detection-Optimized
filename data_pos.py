@@ -1,67 +1,61 @@
-import os
+# Importing Required Libraries
 import ast
+import glob
+import multiprocessing
 import nltk
+import os
+
+import matplotlib.pyplot as plt
+from multiprocessing import Pool
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
+from PIL import Image
 import torch
 import torchvision.transforms as transforms
 from torch.utils.data import Dataset
-from PIL import Image
-import glob
-from multiprocessing import Pool
 from tqdm import tqdm
 
+# Argument to suppress Matplotlib Plotting to Console
 import matplotlib
 matplotlib.use('Agg')
 
 class Data():
     """
-    A container for the data used to train and evaluate the POS tagging model.
+    Data Class to facilitate conversion of text data into Parts of Speech tagged Image Data.
 
-    Args:
-        csv_name: The path to the CSV file containing the data.
+    Methods
+    -------
+    save_pos_tagged_images(name, images_dir)
+        Save the POS-tagged image-based text embeddings.
 
-    Attributes:
-        df: The Pandas DataFrame object containing the data.
-        human_paragraphs: A list of lists of strings, where each inner list represents a paragraph of human answers.
-        chatgpt_paragraphs: A list of lists of strings, where each inner list represents a paragraph of ChatGPT answers.
+    save_torch_data_batches(folder_path)
+        Save the PyTorch Data Batch Files of generated images.
 
-    Methods:
-        __init__(self, csv_name):
-            Initializes the class and reads the data from the CSV file.
-        _read_csv(self):
-            Reads the CSV file and stores the data in the following variables:
-                * `self.df`: The Pandas DataFrame object.
-                * `self.human_paragraphs`: A list of lists of strings, where each inner list represents a paragraph of human answers.
-                * `self.chatgpt_paragraphs`: A list of lists of strings, where each inner list represents a paragraph of ChatGPT answers.
-        _cpu_thread_worker(self, paragraph, itr, name):
-            A CPU thread worker that saves the given paragraph to a file.
-        save_pos_tagged_images(self, name, images_dir):
-            Saves the given dataset to a directory in torch format.
-        save_torch_data_batches(self, folder_path):
-            Saves the given dataset to a directory in torch format.
-        get_train_test_val_data(self, batch_path=None, split=[0.8, 0.1, 0.1]):
-            Gets the training, testing, and validation datasets from the given batch path.
+    get_train_test_val_data(batch_path, split)
+        Get the train, test, and validation datasets from the image-based dataset.
     """
-
+    
     def __init__(self, csv_name):
         """
-        Initializes the class and reads the data from the CSV file.
-        """
+        Data Class init
 
+        Parameters
+        ----------
+        csv_name: str
+            HC3 Dataset csv file path.
+        """
+       
         self.csv_name = csv_name
+
+        # Calling the _read_csv function
         self._read_csv()
 
     def _read_csv(self):
         """
-        Read the CSV file and store the data in the following variables:
-
-        * `self.df`: The Pandas DataFrame object.
-        * `self.human_paragraphs`: A list of lists of strings, where each inner list represents a paragraph of human answers.
-        * `self.chatgpt_paragraphs`: A list of lists of strings, where each inner list represents a paragraph of ChatGPT answers.
+        Function to read the HC3 Dataset csv and process into human and chatgpt paragraphs.
         """
-
+        
+        # Reading the HC3 Dataset
         self.df = pd.read_csv(self.csv_name)
 
         # Create a list of lists of strings, where each inner list represents a paragraph of human/chatgpt answers.
@@ -72,40 +66,60 @@ class Data():
         
     def _cpu_thread_worker(self, paragraph, itr, name):
         """
-        A CPU thread worker that saves the given paragraph to a file.
+        Function to process a paragraph and save into corresponding image embedddings.
 
-        Args:
-            paragraph: The paragraph to save.
-            itr: The iteration number.
-            name: The name of the dataset.
+        Parameters
+        ----------
+        paragraph: list(str)
+            String array consisting of several related sentences.
+
+        itr: int
+            Paragraph iteration ID.
+
+        name: str
+            'ai' or 'human'
         """
-
+        
+        # Ignore if the number of sentences in the paragraph is less than 3
         if len(paragraph) < 3:
             return
-
+        
+        # Initializing the arrays to store POS-Tags and its corresponding lengths.
         arrs = []
         arr_lens = []
+
+        mini_itr = 1
+        # Iterating over the paragraph
         for i in range(len(paragraph)):
+
+            # Extracting the current sentence
             sentence = paragraph[i] + '.'
+
+            # POS-Tagging the sentence
             arr, arr_len = self.pos_obj.get_tags(sentence)
+
+            # Append metadata to corresponding arrays
             arrs.append(arr)
             arr_lens.append(arr_len)
 
-        # The function iterates over the paragraph, in groups of three sentences.
-        # For each group of three sentences, the function does the following:
-        #   * Finds the minimum and maximum lengths of the sentences in the group.
-        #   * Creates a new array, where each element is the corresponding element from the sentences in the group, padded with zeros to the maximum length.
-        #   * Creates a contour plot of the new array.
-        #   * Saves the contour plot to a file.
-
+        # Iterate over the paragraph in the following sequence
+        # 1->2->3 then 2->3->4 then 3->4->5, etc
         for i in range(0, len(paragraph) - 2):
             try:
+                # Computing the smallest sentence in the set of three sentences
                 min_len = min(arr_lens[i:i+3])
+                # Computing the largest sentence in the set of three sentences
                 max_len = max(arr_lens[i:i+3])
+
+                # Initializing array to store padded sentences
                 arrs_ = []
                 for j in range(3):
                     arr = arrs[i+j].copy()
+
+                    # Padding all the 3 sentennces with 0s to make them equally long as the longest sentence.
                     arr.extend([0]*(max_len - arr_lens[i+j]))
+
+                    # Append the padded embeddings.
                     arrs_.append(arr)
 
                 # Stack the arrays vertically
@@ -119,6 +133,7 @@ class Data():
                 plt.savefig(f"{self.images_dir}{name}/{name}_{itr}_{mini_itr}.png",bbox_inches='tight', pad_inches=0, dpi=100)
                 plt.close()
                 
+                # Update the mini-iteration
                 mini_itr += 1
 
             except Exception as e:
@@ -126,13 +141,16 @@ class Data():
 
     def save_pos_tagged_images(self, name, images_dir):
         """
-        Saves the given dataset to a directory in torch format.
+        Function to save the POS-Tagged Images for a particular label (AI or Human).
 
-        Args:
-            name: The name of the dataset.
-            images_dir: The path to the directory where the data will be saved.
+        Parameters
+        ----------
+        name: str
+            'human' or 'ai'
+        images_dir: str
+            Directory to store the images.
         """
-
+        
         # Set the data store path.
         self.images_dir = images_dir
 
@@ -144,13 +162,20 @@ class Data():
             paragraphs = self.chatgpt_paragraphs
             name = "ai"
 
+        # Create the Image Directory if not present
+        try:
+            os.mkdir(f"{self.images_dir}")
+        except:
+            pass
         try:
             os.mkdir(f"{self.images_dir}/{name}")
-        except FileExistsError:
+        except:
             pass
 
         # Create an instance of the POSTags class.
         self.pos_obj = POSTags()
+
+        itr = 1
 
         # Create a multiprocessing pool.
         with multiprocessing.Pool() as pool:
@@ -170,14 +195,27 @@ class Data():
 
     def save_torch_data_batches(self, folder_path):
         """
-        Saves the given dataset to a directory in torch format.
+        Function to convert the stored POS-Tagged Images into corresponding PyTorch Batch Tensors
+        for easier data loading for training the model.
 
-        Args:
-            folder_path: The path to the directory where the data will be saved.
+        Parameters
+        ----------
+        folder_path: str
+            Directory to store the Data Batch Files.
         """
 
         # Set the data store path.
         self.data_store_path = folder_path
+
+        # Create the Data Store Directory if not present
+        try:
+            os.mkdir(f"{self.data_store_path}")
+        except:
+            pass
+        try:
+            os.mkdir(f"{self.data_store_path}/batches/")
+        except:
+            pass
 
         # Define the transform to apply on the images.
         transform = transforms.Compose([transforms.Resize((50, 50)), transforms.ToTensor()])
@@ -207,14 +245,23 @@ class Data():
 
     def get_train_test_val_data(self, batch_path=None, split=[0.8, 0.1, 0.1]):
         """
-        Gets the training, testing, and validation datasets from the given batch path.
+        Function to convert the stored Data Batch Files into train, test and validation sets and return them.
 
-        Args:
-            batch_path: The path to the batch directory.
-            split: The split of the data, in the form [train_size, test_size, val_size].
+        Parameters
+        ----------
+        batch_path: str
+            Directory where the Data Batch Files are stored.
+        split: list(int)
+            Train, Test, and Validation ratios.
 
-        Returns:
-            A tuple of the training, testing, and validation datasets.
+        Returns
+        -------
+        train_set: POSImageTensorDataset
+            Training Set
+        test_set: POSImageTensorDataset
+            Testing Set
+        val_set: POSImageTensorDataset
+            Validation Set
         """
 
         # If the batch path is not given, use the default batch directory.
@@ -254,32 +301,19 @@ class Data():
 
 class POSImageTensorDataset(Dataset):
     """
-    This class provides a dataset of images and labels for parts-of-speech (POS) tagging.
-
-    Attributes:
-        images: A tensor of images.
-        labels: A tensor of labels.
-        transform: A transform that is applied to each image.
-
-    Methods:
-        __init__(self, images, labels, transform=None):
-            Initializes the class.
-
-        __len__(self):
-            Returns the number of images in the dataset.
-
-        __getitem__(self, index):
-            Returns the image and its corresponding label at the given index.
+    Custom-defined PyTorch Dataset Class to handle POS-Tagged images.
     """
 
     def __init__(self, images, labels, transform=None):
         """
-        Initializes the class.
+        POSImageTensorDataset Class init.
 
-        Args:
-            images: A tensor of images.
-            labels: A tensor of labels.
-            transform: A transform that is applied to each image.
+        Parameters
+        ----------
+        images: torch.Tensor
+            List of POS-Tagged images converted to torch tensors.
+        transform: torchvision.transforms.Compose
+            List of transforms to apply on the data, else None
         """
 
         # The tensor of images.
@@ -293,14 +327,29 @@ class POSImageTensorDataset(Dataset):
 
     def __len__(self):
         """
-        Returns the number of images in the dataset.
+        Returns
+        -------
+            Number of samples in the POSImageTensorDataset.
+
         """
 
         return len(self.images)
 
     def __getitem__(self, index):
         """
-        Returns the image and its corresponding label at the given index.
+        Function to get the sample in POSImageTensorDataset at a particular index.
+
+        Parameters
+        ----------
+        index: int
+            Index of the sample desired.
+        
+        Returns
+        -------
+        image: torch.Tensor
+            Image at the index.
+        label: torch.Tensor
+            Label of the Image at the index.
         """
 
         # The image and label at the given index.
@@ -326,30 +375,19 @@ class POSImageTensorDataset(Dataset):
     
 class POSImageDataset(Dataset):
     """
-    This class provides a dataset of images for parts-of-speech (POS) tagging.
-
-    Attributes:
-        root_dir: The directory where the images are stored.
-        transform: A transform that is applied to each image.
-
-    Methods:
-        __init__(self, root_dir, transform=None):
-            Initializes the class.
-
-        __len__(self):
-            Returns the number of images in the dataset.
-
-        __getitem__(self, index):
-            Returns the image and its corresponding label at the given index.
+    Custom-defined PyTorch Dataset Class to convert POS-Tagged images torch Dataset.
     """
 
     def __init__(self, root_dir, transform=None):
         """
-        Initializes the class.
+        POSImageTensorDataset Class init.
 
-        Args:
-            root_dir: The directory where the images are stored.
-            transform: A transform that is applied to each image.
+        Parameters
+        ----------
+        root_dir: str
+            Directory where the POS-tagged images are stored.
+        transform: torchvision.transforms.Compose
+            List of transforms to apply on the data, else None
         """
 
         self.root_dir = root_dir
@@ -368,14 +406,29 @@ class POSImageDataset(Dataset):
 
     def __len__(self):
         """
-        Returns the number of images in the dataset.
+        Returns
+        -------
+            Number of samples in the POSImageDataset.
+
         """
 
         return len(self.image_files)
 
     def __getitem__(self, index):
         """
-        Returns the image and its corresponding label at the given index.
+        Function to get the sample in POSImageDataset at a particular index.
+
+        Parameters
+        ----------
+        index: int
+            Index of the sample desired.
+        
+        Returns
+        -------
+        image: torch.Tensor
+            Image at the index.
+        label: torch.Tensor
+            Label of the Image at the index.
         """
 
         # The index of the image file.
@@ -394,24 +447,12 @@ class POSImageDataset(Dataset):
             
 class POSTags:
     """
-    This class provides methods for getting parts-of-speech (POS) tags from a sentence.
-
-    Attributes:
-        pos_dict: A dictionary that maps POS tags to their corresponding integer values.
-
-    Methods:
-        __init__(self):
-            Initializes the class.
-
-        get_tags(self, sentence):
-            Gets the POS tags for a sentence.
+    Class to handle mapping of nltk-returned POS Tags to corresponding ids.
     """
 
     def __init__(self):
         """
-        Initializes the class.
-
-        The `pos_dict` attribute is initialized with a dictionary that maps POS tags to their corresponding integer values.
+        POSTags Class init.
         """
 
         self.pos_dict = {'CC': 1, 'CD': 2, 'DT': 3, 'EX': 4, 'FW': 5, 'IN': 6, 'JJ': 7, 'JJR': 8,
@@ -422,15 +463,21 @@ class POSTags:
 
     def get_tags(self, sentence):
         """
-        Gets the POS tags for a sentence.
+        Function to get the POS Tags for a particular sentence.
 
-        The sentence is first tokenized into words and POS tags. The POS tags are then looked up in the `pos_dict` attribute and converted to their corresponding integer values. The resulting list of integer values is returned.
+        Parameters
+        ----------
+        sentence: str
+            Sentence string.
 
-        Args:
-            sentence: The sentence to get the POS tags for.
+        Returns
+        -------
+        pos_tags: list(int)
+            POS-tag embedding array for the given sentence.
 
-        Returns:
-            A list of integer values representing the POS tags for the sentence.
+        len_pos: int
+            Length of POS Tag array.
+
         """
 
         # Tokenize the sentence into words and POS tags.
@@ -441,5 +488,6 @@ class POSTags:
 
         # Remove any POS tags that are not defined.
         pos_tags = [pos_tag_ for pos_tag_ in pos_tags if pos_tag_ != 0]
+        len_pos = len(pos_tags)
 
-        return pos_tags
+        return pos_tags, len_pos
